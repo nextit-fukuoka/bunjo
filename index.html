@@ -87,22 +87,24 @@ table.g input{width:100%}
   #print{display:block}
   .pg{page-break-after:always;height:277mm;display:flex;flex-direction:column}
   .pg:last-child{page-break-after:auto}
-  .half{height:50%;display:flex;flex-direction:column;padding:2mm 0;font-size:10pt;color:#000}
+  .half{height:50%;display:flex;flex-direction:column;padding:2mm 0;font-size:9.5pt;color:#000;overflow:hidden}
   .half+.half{border-top:1px dashed #888;padding-top:5mm}
-  .half h3{text-align:center;font-size:15pt;letter-spacing:.3em;margin:0 0 3mm;font-weight:700}
+  .half h3{text-align:center;font-size:14pt;letter-spacing:.3em;margin:0 0 2mm;font-weight:700}
   .half .hd{display:flex;justify-content:space-between;gap:6mm}
   .half .to{font-size:12pt;border-bottom:1px solid #000;min-width:80mm;padding-bottom:1mm}
-  .half .to small{font-size:9pt;display:block;margin-top:1mm}
-  .half .me{text-align:left;font-size:9pt;line-height:1.45}
+  .half .to small{font-size:8.5pt;display:block;margin-top:1mm;line-height:1.3}
+  .half .me{text-align:left;font-size:8.5pt;line-height:1.3}
   .half .me .nm{font-size:12pt;font-weight:700}
-  .half table{width:100%;border-collapse:collapse;margin-top:3mm;font-size:9.5pt}
-  .half th,.half td{border:1px solid #000;padding:.8mm 1.5mm;height:5.6mm}
+  .half table{width:100%;border-collapse:collapse;margin-top:2mm;font-size:9pt;table-layout:fixed}
+  .half th,.half td{border:1px solid #000;padding:.4mm 1.2mm;height:5.4mm;white-space:nowrap;overflow:hidden;line-height:1.15}
+  .half td.wrap{white-space:normal}
   .half th{background:#eee;font-weight:500}
   .half td.n{text-align:right;font-variant-numeric:tabular-nums}
   .half .ft{display:flex;gap:4mm;margin-top:2mm}
-  .half .ft .rm{flex:1;border:1px solid #000;padding:1mm 2mm;min-height:16mm;font-size:9pt}
+  .half .ft .rm{flex:1;border:1px solid #000;padding:1mm 2mm;min-height:14mm;font-size:8.5pt;overflow:hidden}
   .half .ft table{width:62mm;margin:0}
   .half .sign{margin-top:2mm;text-align:right;font-size:9pt}
+  .half .ft table{table-layout:auto}
 }
 </style>
 </head>
@@ -418,6 +420,13 @@ function updSlip(tr, l){
 function slipFilled(){ return slip.lines.filter(l => l.name); }
 function destById(id){ return S.dests.find(d => d.id === id) || null; }
 
+// 薬品名セル: 列幅(mm)に1行で収まるよう文字サイズを自動縮小(最小7pt・それでも長ければ7ptで2行)
+function nameTd(name, mm){
+  const u = [...String(name || '')].reduce((a, c) => a + (/[ -~｡-ﾟ]/.test(c) ? .62 : 1), 0);
+  const pt = u ? Math.min(9, mm / (u * 0.3528)) : 9;
+  return pt >= 7 ? `<td style="font-size:${pt.toFixed(1)}pt">${esc(name)}</td>` : `<td class="wrap" style="font-size:7.5pt">${esc(name)}</td>`;
+}
+const COLS = w => `<colgroup>${w.map(x => `<col style="width:${x}%">`).join('')}</colgroup>`;
 // 印刷: 10行ごとに A4 1枚(上=納品書、下=控)
 function slipHalf(doc, chunk, page, pages, isCopy){
   const d = doc.dest || {};
@@ -430,8 +439,8 @@ function slipHalf(doc, chunk, page, pages, isCopy){
       <div><div class="to">${esc(d.name || '')}　御中<small>${esc(d.addr || '')}<br>${d.tel ? 'Tel ' + esc(d.tel) : ''}　${d.fax ? 'Fax ' + esc(d.fax) : ''}${d.kyoka ? '<br>開設許可番号 ' + esc(d.kyoka) : ''}</small></div></div>
       <div class="me">${jdate(doc.date)}${pages > 1 ? `(${page}/${pages})` : ''}<br>${esc(me.addr)}<br><span class="nm">${esc(me.name)}</span><br>Tel ${esc(me.tel)}　Fax ${esc(me.fax)}<br>薬局開設許可番号 ${esc(me.kyoka)}<br>管理薬剤師 ${esc(me.kanri)}</div>
     </div>
-    <table><thead><tr><th style="width:40%">薬品名</th><th>数量</th><th>薬価</th><th>掛率</th><th>単価</th><th>金額</th><th>期限</th><th>ロット</th></tr></thead><tbody>
-    ${rows.map(l => l ? `<tr><td>${esc(l.name)}</td><td class="n">${esc(l.qty)}${esc(l.unit||'')}</td><td class="n">${(+l.price).toLocaleString()}</td><td class="n">${l.rate}%</td><td class="n">${unitPrice(l).toLocaleString()}</td><td class="n">${yen(amount(l))}</td><td>${esc(l.exp||'')}</td><td>${esc(l.lot||'')}</td></tr>` : '<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
+    <table>${COLS([42,9,7,6,8,9,9,10])}<thead><tr><th>薬品名</th><th>数量</th><th>薬価</th><th>掛率</th><th>単価</th><th>金額</th><th>期限</th><th>ロット</th></tr></thead><tbody>
+    ${rows.map(l => l ? `<tr>${nameTd(l.name, 71)}<td class="n">${esc(l.qty)}${esc(l.unit||'')}</td><td class="n">${(+l.price).toLocaleString()}</td><td class="n">${l.rate}%</td><td class="n">${unitPrice(l).toLocaleString()}</td><td class="n">${yen(amount(l))}</td><td>${esc(l.exp||'')}</td><td>${esc(l.lot||'')}</td></tr>` : '<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
     </tbody></table>
     <div class="ft"><div class="rm">備考　${esc(doc.note||'')}</div>
       <table><tr><th>小計</th><td class="n">${t ? yen(t.sub) : ''}</td></tr><tr><th>消費税</th><td class="n">${t ? yen(t.tax) : ''}</td></tr><tr><th>合計</th><td class="n">${t ? yen(t.total) : ''}</td></tr></table></div>
@@ -509,13 +518,13 @@ function printReq(){
     h += `<div class="pg">
       <div class="half"><h3>分譲依頼書</h3>
         <div class="hd"><div><div class="to">${esc(d.name||'')}　様</div><p>いつもお世話になっております。<br>下記の分譲をお願い致します。</p></div>${meBlock}</div>
-        <table><thead><tr><th style="width:70%">薬品名</th><th>数量</th></tr></thead><tbody>
-        ${rows.map(l => l ? `<tr><td>${esc(l.name)}</td><td class="n">${esc(l.qty||'')}${esc(l.unit||'')}</td></tr>` : '<tr><td></td><td></td></tr>').join('')}</tbody></table></div>
+        <table>${COLS([75,25])}<thead><tr><th>薬品名</th><th>数量</th></tr></thead><tbody>
+        ${rows.map(l => l ? `<tr>${nameTd(l.name, 128)}<td class="n">${esc(l.qty||'')}${esc(l.unit||'')}</td></tr>` : '<tr><td></td><td></td></tr>').join('')}</tbody></table></div>
       <div class="half"><h3>向精神薬等分譲確認書</h3>
         <div class="hd"><div><div class="to">${esc(d.name||'')}　様</div></div>
           <div class="me">${jdate(req.date)}<br>${esc(me.addr)}<br><span class="nm">${esc(me.name)}</span><br>管理薬剤師 ${esc(me.kanri)}　㊞<br>Tel ${esc(me.tel)}　Fax ${esc(me.fax)}</div></div>
-        <table><thead><tr><th style="width:70%">薬品名</th><th>数量</th></tr></thead><tbody>
-        ${crow.map(l => l ? `<tr><td>${esc(l.name)}</td><td class="n">${esc(l.qty||'')}${esc(l.unit||'')}</td></tr>` : '<tr><td></td><td></td></tr>').join('')}</tbody></table></div>
+        <table>${COLS([75,25])}<thead><tr><th>薬品名</th><th>数量</th></tr></thead><tbody>
+        ${crow.map(l => l ? `<tr>${nameTd(l.name, 128)}<td class="n">${esc(l.qty||'')}${esc(l.unit||'')}</td></tr>` : '<tr><td></td><td></td></tr>').join('')}</tbody></table></div>
     </div>`;
   }
   $('print').innerHTML = h;
