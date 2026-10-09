@@ -56,6 +56,20 @@ table.g input{width:100%}
 .tot b{font-size:20px;font-variant-numeric:tabular-nums}
 .warn{background:#fff4e5;border:1px solid #f0c48a;color:#7a4a0c;border-radius:6px;padding:8px 12px;margin-top:10px;font-size:13px}
 .muted{color:var(--sub);font-size:13px}
+.modal{position:fixed;inset:0;background:rgba(15,25,40,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:6vh 16px}
+.modal .box{background:#fff;border-radius:10px;width:min(820px,100%);max-height:86vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.modal .hd2{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.modal .hd2 h2{font-size:16px;margin:0;width:100%}
+.modal .bd2{overflow:auto;padding:4px 0}
+.pr{display:flex;gap:12px;align-items:center;padding:9px 16px;border-bottom:1px solid #eef1f5}
+.pr:hover{background:var(--acc-l)}
+.pr .nm{font-weight:700}
+.pr .sub{font-size:12px;color:var(--sub)}
+.pr .btn{margin-left:auto;white-space:nowrap}
+.banner{background:#fff4e5;border-bottom:1px solid #f0c48a;color:#7a4a0c;padding:8px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:14px}
+.banner .btn{padding:4px 12px}
+.ok{color:var(--grn)}
+.ng{color:var(--red)}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1f2a37;color:#fff;padding:10px 18px;border-radius:8px;z-index:99;opacity:0;transition:.3s;pointer-events:none}
 .toast.on{opacity:1}
 .hide{display:none!important}
@@ -103,6 +117,7 @@ table.g input{width:100%}
   <button data-t="hist">分譲履歴</button>
   <button data-t="set">初期設定</button>
 </nav>
+<div id="banner"></div>
 
 <main>
   <!-- ── 分譲納品書 ── -->
@@ -111,6 +126,7 @@ table.g input{width:100%}
       <div class="row">
         <label class="f" style="flex:1;min-width:220px">分譲先(譲受人)
           <select id="s-to"></select></label>
+        <button class="btn sm" data-find="slip" style="margin-bottom:4px">🔍 薬局を検索して追加</button>
         <label class="f">日付<input type="date" id="s-date"></label>
         <label class="f">掛け率(一括)
           <select id="s-rate"></select></label>
@@ -141,6 +157,7 @@ table.g input{width:100%}
       <div class="row">
         <label class="f" style="flex:1;min-width:220px">依頼先(分譲元)
           <select id="r-to"></select></label>
+        <button class="btn sm" data-find="req" style="margin-bottom:4px">🔍 薬局を検索して追加</button>
         <label class="f">日付<input type="date" id="r-date"></label>
       </div>
     </div>
@@ -176,7 +193,7 @@ table.g input{width:100%}
   <!-- ── 初期設定 ── -->
   <section id="t-set" class="hide">
     <div class="card">
-      <h2>自薬局データ</h2>
+      <h2>自薬局データ <button class="btn sm" data-find="me" style="margin-left:8px">🔍 保険薬局一覧から入力</button></h2>
       <div class="grid2">
         <label class="f">薬局名<input type="text" id="c-name"></label>
         <label class="f">住所<input type="text" id="c-addr"></label>
@@ -193,12 +210,15 @@ table.g input{width:100%}
       <h2>分譲先(取引薬局)</h2>
       <table class="g"><thead><tr><th>薬局名</th><th>住所</th><th>TEL</th><th>FAX</th><th>開設許可番号</th><th>代表者</th><th>標準掛け率</th><th></th></tr></thead>
         <tbody id="c-dests"></tbody></table>
-      <button class="btn sm" id="c-add" style="margin-top:8px">＋ 分譲先を追加</button>
+      <div class="row" style="margin-top:8px"><button class="btn sm pri" data-find="set">🔍 薬局を検索して追加</button><button class="btn sm" id="c-add">＋ 手入力で追加</button>
+        <span class="muted" id="pf-src"></span></div>
     </div>
     <div class="card">
       <h2>データの保存・移行</h2>
-      <p class="muted">データはこのパソコンのブラウザ内に保存されます。パソコン交換やブラウザの履歴削除に備えて、定期的にバックアップを保存してください。</p>
+      <p class="muted">データはこのパソコンのブラウザ内に保存されます。ブラウザを閉じてもパソコンを再起動しても消えませんが、<b>ブラウザの「閲覧データの削除(Cookieとサイトデータ)」・別のパソコンやブラウザ・シークレットウィンドウ</b>では見えなくなります。備えとして自動バックアップを設定してください。</p>
+      <div id="safe-status" style="margin:10px 0"></div>
       <div class="row">
+        <button class="btn pri" id="b-auto">📁 自動バックアップ先を設定</button>
         <button class="btn" id="b-export">💾 バックアップ保存(JSON)</button>
         <label class="btn">📂 バックアップから復元<input type="file" id="b-import" accept=".json" hidden></label>
         <label class="btn">📗 旧Excel(分譲伝票発行.xlsm)から取込<input type="file" id="b-xls" accept=".xlsm,.xlsx" hidden></label>
@@ -207,6 +227,17 @@ table.g input{width:100%}
   </section>
 </main>
 
+<div id="pf" class="modal hide">
+  <div class="box">
+    <div class="hd2">
+      <h2 id="pf-title">薬局を検索</h2>
+      <label class="f">県<select id="pf-pref"></select></label>
+      <label class="f" style="flex:1;min-width:200px">薬局名・住所・電話番号(空白区切りで絞込)<input type="text" id="pf-q" placeholder="例: すずらん 大村 / 0957-49"></label>
+      <button class="btn" id="pf-close">閉じる</button>
+    </div>
+    <div class="bd2" id="pf-list"></div>
+  </div>
+</div>
 <div id="print"></div>
 <div class="toast" id="toast"></div>
 
@@ -226,7 +257,12 @@ function load(){
 function save(){
   try{ localStorage.setItem(SKEY, JSON.stringify(S)); }
   catch(e){ toast('⚠ 保存できませんでした(容量不足の可能性)。バックアップを保存してください'); }
+  queueAutoBackup();
 }
+// 端末ごとの補助情報(バックアップ日時など)。バックアップJSONには含めない
+const MKEY = 'bunjo_meta';
+function meta(){ try{ return JSON.parse(localStorage.getItem(MKEY) || '{}'); }catch(e){ return {}; } }
+function setMeta(o){ try{ localStorage.setItem(MKEY, JSON.stringify(Object.assign(meta(), o))); }catch(e){} }
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -549,6 +585,7 @@ $('b-export').onclick = () => {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 1)], {type:'application/json'}));
   a.download = `分譲伝票バックアップ_${today()}.json`; a.click();
+  setMeta({lastBackup: Date.now()}); renderSafety();
 };
 $('b-import').onchange = async e => {
   const f = e.target.files[0]; if(!f) return;
@@ -631,10 +668,169 @@ $('r-print').onclick = printReq;
 $('h-csv').onclick = histCsv;
 window.addEventListener('afterprint', () => $('print').innerHTML = '');
 
-function renderAll(){ renderSlip(); renderReq(); renderSet(); renderHist(); }
+// ── データ保護 ──
+// ① 永続ストレージを要求(ブラウザの容量整理で自動削除されないようにする)
+let persisted = null;
+async function askPersist(){
+  try{
+    if(!navigator.storage || !navigator.storage.persist) return;
+    persisted = await navigator.storage.persisted();
+    if(!persisted) persisted = await navigator.storage.persist();
+  }catch(e){}
+  renderSafety();
+}
+// ② 別タブで更新されたら読み直す(2つのタブで開いて片方の保存がもう片方を上書きする事故を防ぐ)
+window.addEventListener('storage', e => {
+  if(e.key !== SKEY) return;
+  S = load();
+  $('s-to').innerHTML = destOptions(slip.to, '— 分譲先を選択 —');
+  $('r-to').innerHTML = destOptions(req.to, '— 依頼先を選択 —');
+  if(!$('t-set').classList.contains('hide') && !$('t-set').contains(document.activeElement)) renderSet();
+  if(!$('t-hist').classList.contains('hide')) renderHist();
+  renderSafety();
+});
+// ③ 自動バックアップ: 指定したファイル(OneDrive等)へ保存のたびに書き出す(Chrome/Edge)
+const canAuto = 'showSaveFilePicker' in window;
+let autoHandle = null, autoState = 'none', autoTimer = null;   // none / ok / need(再許可待ち) / error
+function idb(){ return new Promise((ok, ng) => { const r = indexedDB.open('bunjo', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => ok(r.result); r.onerror = () => ng(r.error); }); }
+async function kv(k, v){
+  const db = await idb();
+  return new Promise((ok, ng) => {
+    const t = db.transaction('kv', v === undefined ? 'readonly' : 'readwrite'), st = t.objectStore('kv');
+    const r = v === undefined ? st.get(k) : (v === null ? st.delete(k) : st.put(v, k));
+    r.onsuccess = () => ok(r.result); r.onerror = () => ng(r.error);
+  });
+}
+async function initAutoBackup(){
+  if(!canAuto) return renderSafety();
+  try{
+    autoHandle = await kv('autoHandle');
+    if(autoHandle) autoState = (await autoHandle.queryPermission({mode:'readwrite'})) === 'granted' ? 'ok' : 'need';
+  }catch(e){ autoState = 'none'; }
+  renderSafety();
+}
+async function writeAutoBackup(){
+  if(!autoHandle || autoState !== 'ok') return;
+  try{
+    const w = await autoHandle.createWritable();
+    await w.write(JSON.stringify(S, null, 1)); await w.close();
+    setMeta({lastAuto: Date.now()});
+  }catch(e){ autoState = 'error'; }
+  renderSafety();
+}
+function queueAutoBackup(){ clearTimeout(autoTimer); autoTimer = setTimeout(writeAutoBackup, 1000); }
+async function setupAutoBackup(){
+  try{
+    const h = await window.showSaveFilePicker({suggestedName:'分譲伝票_自動バックアップ.json', types:[{description:'JSON', accept:{'application/json':['.json']}}]});
+    autoHandle = h; await kv('autoHandle', h); autoState = 'ok';
+    await writeAutoBackup(); toast('自動バックアップを設定しました');
+  }catch(e){ if(e.name !== 'AbortError') toast('設定できませんでした'); }
+}
+async function resumeAutoBackup(){
+  try{ autoState = (await autoHandle.requestPermission({mode:'readwrite'})) === 'granted' ? 'ok' : 'need'; }catch(e){}
+  if(autoState === 'ok') writeAutoBackup(); else renderSafety();
+}
+const ago = t => { if(!t) return 'まだありません'; const d = Math.floor((Date.now() - t) / 864e5); return d <= 0 ? '今日' : d + '日前'; };
+function renderSafety(){
+  const m = meta(), last = Math.max(m.lastBackup || 0, autoState === 'ok' ? (m.lastAuto || 0) : 0);
+  const st = $('safe-status');
+  if(st) st.innerHTML = `<table class="g" style="max-width:640px"><tbody>
+    <tr><td>ブラウザの自動削除からの保護</td><td>${persisted === true ? '<span class="ok">✓ 保護されています</span>' : persisted === false ? '<span class="muted">未許可(このURLをブックマークすると許可されやすくなります)</span>' : '<span class="muted">—</span>'}</td></tr>
+    <tr><td>自動バックアップ</td><td>${!canAuto ? '<span class="muted">このブラウザは非対応(Chrome / Edge で利用できます)</span>'
+      : autoState === 'ok' ? `<span class="ok">✓ ${esc(autoHandle.name)} に保存中</span>(最終 ${ago(m.lastAuto)})`
+      : autoState === 'need' ? `<span class="ng">一時停止中</span> <button class="btn sm" id="b-resume">再開する</button>`
+      : autoState === 'error' ? '<span class="ng">書き込みに失敗(ファイルを移動・削除した可能性)</span> → 設定し直してください'
+      : '<span class="ng">未設定</span>'}</td></tr>
+    <tr><td>手動バックアップ</td><td>最終 ${ago(m.lastBackup)}</td></tr>
+    <tr><td>保存件数</td><td>分譲先 ${S.dests.length}件 / 履歴 ${S.hist.length}件</td></tr></tbody></table>`;
+  if($('b-resume')) $('b-resume').onclick = resumeAutoBackup;
+  if($('b-auto')) $('b-auto').classList.toggle('hide', !canAuto);
+  // 上部の注意帯
+  let b = '';
+  if(autoState === 'need') b = `🛡 自動バックアップが一時停止中です(ブラウザの仕様で起動ごとに許可が必要です) <button class="btn" id="bn-resume">再開する</button>`;
+  else if(S.hist.length && Date.now() - last > 14 * 864e5) b = `⚠ バックアップが${last ? ago(last) : 'まだありません'}。データ保護のため保存してください <button class="btn" id="bn-save">💾 今すぐ保存</button>${canAuto ? ' <button class="btn" id="bn-auto">📁 自動バックアップを設定</button>' : ''}`;
+  $('banner').innerHTML = b ? `<div class="banner">${b}</div>` : '';
+  if($('bn-resume')) $('bn-resume').onclick = resumeAutoBackup;
+  if($('bn-save')) $('bn-save').onclick = () => $('b-export').click();
+  if($('bn-auto')) $('bn-auto').onclick = setupAutoBackup;
+}
+$('b-auto').onclick = setupAutoBackup;
+
+// ── 保険薬局一覧(九州厚生局)から検索 ──
+let PF = {idx:null, cache:{}, mode:'set'};
+const PREF_ORDER = ['福岡','佐賀','長崎','熊本','大分','宮崎','鹿児島','沖縄'];
+async function pfIndex(){
+  if(!PF.idx){ PF.idx = await (await fetch('data/yakkyoku/index.json', {cache:'no-cache'})).json(); }
+  return PF.idx;
+}
+async function pfRows(pref){
+  if(!PF.cache[pref]){
+    const f = PF.idx.prefs[pref].file;
+    const d = await (await fetch('data/yakkyoku/' + f, {cache:'no-cache'})).json();
+    PF.cache[pref] = d.rows.map(r => ({r, k: norm(r[1] + r[3] + r[5]) + '|' + r[4].replace(/\D/g, '')}));
+  }
+  return PF.cache[pref];
+}
+async function openFinder(mode){
+  PF.mode = mode;
+  $('pf-title').textContent = mode === 'me' ? '自薬局を保険薬局一覧から探す' : '分譲先にする薬局を探す';
+  $('pf').classList.remove('hide');
+  $('pf-list').innerHTML = '<div class="loading">読み込み中…</div>';
+  try{
+    const ix = await pfIndex();
+    const prefs = PREF_ORDER.filter(p => ix.prefs[p]);
+    const def = meta().pref || S.me.pref || prefs[0];
+    $('pf-pref').innerHTML = prefs.map(p => `<option ${p===def?'selected':''}>${p}</option>`).join('');
+    $('pf-q').value = ''; $('pf-q').focus();
+    await pfSearch();
+  }catch(e){ $('pf-list').innerHTML = '<div class="loading">薬局一覧を読み込めませんでした(ネット接続を確認)</div>'; }
+}
+async function pfSearch(){
+  const pref = $('pf-pref').value; setMeta({pref});
+  const rows = await pfRows(pref);
+  const raw = $('pf-q').value.trim();
+  const toks = raw.split(/[\s　]+/).filter(Boolean).map(t => /^[\d\-‐－()（）]+$/.test(t) ? '|' + t.replace(/\D/g, '') : norm(t));
+  if(!toks.length){ $('pf-list').innerHTML = `<div class="loading">${pref}県の保険薬局 ${rows.length.toLocaleString()}件から検索します。薬局名・住所・電話番号の一部を入力してください</div>`; return; }
+  const hit = rows.filter(x => toks.every(t => t[0] === '|' ? x.k.split('|')[1].includes(t.slice(1)) : x.k.includes(t))).slice(0, 60);
+  const reg = new Set(S.dests.map(d => norm(d.name) + '|' + String(d.tel||'').replace(/\D/g,'')));
+  $('pf-list').innerHTML = hit.length ? hit.map((x, i) => {
+    const r = x.r, done = PF.mode !== 'me' && reg.has(norm(r[1]) + '|' + r[4].replace(/\D/g,''));
+    return `<div class="pr"><div><div class="nm">${esc(r[1])}</div><div class="sub">〒${esc(r[2])} ${esc(r[3])}　TEL ${esc(r[4])}</div><div class="sub">開設者 ${esc(r[5])}</div></div>
+      ${done ? '<span class="muted" style="margin-left:auto">登録済み</span>' : `<button class="btn sm pri" data-i="${i}">${PF.mode === 'me' ? 'この薬局を自薬局に' : '追加'}</button>`}</div>`;
+  }).join('') + (hit.length >= 60 ? '<div class="loading">60件まで表示しています。語を足して絞り込んでください</div>' : '')
+    : '<div class="loading">見つかりませんでした。別の県や、短い語で試してください</div>';
+  $('pf-list').querySelectorAll('button[data-i]').forEach(b => b.onclick = () => pfPick(hit[+b.dataset.i].r, pref));
+}
+function pfPick(r, pref){
+  if(PF.mode === 'me'){
+    Object.assign(S.me, {name:r[1], addr:r[3], tel:r[4], pref});
+    save(); renderSet(); closeFinder(); toast('自薬局を入力しました。FAX・管理薬剤師・開設許可番号を確認してください');
+    return;
+  }
+  const d = {id:uid(), name:r[1], addr:r[3], tel:r[4], fax:'', kyoka:'', rep:r[5], rate:100, code:r[0], pref};
+  S.dests.push(d); save();
+  if(PF.mode === 'slip'){ slip.to = d.id; $('s-to').innerHTML = destOptions(slip.to, '— 分譲先を選択 —'); }
+  if(PF.mode === 'req'){ req.to = d.id; $('r-to').innerHTML = destOptions(req.to, '— 依頼先を選択 —'); }
+  if(PF.mode === 'set') renderSet();
+  closeFinder();
+  renderSafety();
+  toast(`「${r[1]}」を追加しました。FAXと開設許可番号は初期設定で入力できます`);
+}
+function closeFinder(){ $('pf').classList.add('hide'); }
+document.querySelectorAll('[data-find]').forEach(b => b.onclick = () => openFinder(b.dataset.find));
+$('pf-close').onclick = closeFinder;
+$('pf').onclick = e => { if(e.target.id === 'pf') closeFinder(); };
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && !$('pf').classList.contains('hide')) closeFinder(); });
+$('pf-pref').onchange = pfSearch;
+let pfT = null; $('pf-q').oninput = () => { clearTimeout(pfT); pfT = setTimeout(pfSearch, 120); };
+pfIndex().then(ix => { $('pf-src').textContent = `九州厚生局 保険薬局一覧(${ix.asOf.replace(/-/g,'/')}現在)から検索できます`; }).catch(() => {});
+
+function renderAll(){ renderSlip(); renderReq(); renderSet(); renderHist(); renderSafety(); }
 renderAll();
 if(!S.me.name) document.querySelector('nav button[data-t=set]').click();
 loadMaster();
+askPersist();
+initAutoBackup();
 </script>
 </body>
 </html>
