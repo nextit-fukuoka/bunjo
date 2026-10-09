@@ -1,0 +1,47 @@
+name: 分譲ソフト 薬価マスター自動更新
+
+# 支払基金「医薬品マスター」の最新版(y_ALL*.zip)を毎週チェックし、
+# 新しい版が出ていれば data/yakka.json を作り直してコミットする。
+#   cron "0 21 * * 0" = 毎週月曜 朝6:00 JST(GitHubのcronはUTC基準)
+#   API課金なし(公開ファイルのダウンロードのみ)。
+#   手動実行: Actions タブ →「分譲ソフト 薬価マスター自動更新」→ Run workflow
+on:
+  schedule:
+    - cron: "0 21 * * 0"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: yakka-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: チェックアウト
+        uses: actions/checkout@v4
+
+      - name: Python セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 薬価マスター取得・変換
+        run: python scripts/build-yakka-master.py
+
+      - name: 変更があればコミット＆プッシュ
+        run: |
+          git config user.name "bunjo-yakka-bot"
+          git config user.email "actions@users.noreply.github.com"
+          if [ -n "$(git status --porcelain data/yakka.json)" ]; then
+            git add data/yakka.json
+            git commit -m "chore: 薬価マスター自動更新 $(TZ=Asia/Tokyo date +%Y-%m-%d)"
+            git pull --rebase
+            git push
+            echo "更新しました"
+          else
+            echo "変更なし"
+          fi

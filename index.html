@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>医薬品分譲伝票</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f6f9; --card:#fff; --tx:#1f2a37; --sub:#5b6676; --line:#d8dee6;
+  --acc:#1f6fb2; --acc-l:#e8f1fa; --grn:#2f8a4f; --red:#c0392b; --org:#c76a12; --pur:#7a3fb0;
+}
+*{box-sizing:border-box}
+html{zoom:1.05}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:'Noto Sans JP',sans-serif;font-size:15px}
+button,input,select,textarea{font:inherit}
+header{background:#183b5c;color:#fff;padding:10px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;font-weight:700}
+header .ver{font-size:12px;opacity:.85;margin-left:auto}
+nav{display:flex;gap:4px;background:#fff;border-bottom:1px solid var(--line);padding:0 12px;flex-wrap:wrap}
+nav button{border:0;background:none;padding:12px 16px;cursor:pointer;color:var(--sub);border-bottom:3px solid transparent;font-weight:500}
+nav button.on{color:var(--acc);border-bottom-color:var(--acc)}
+main{max-width:1180px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:16px}
+.card h2{font-size:16px;margin:0 0 12px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--sub)}
+input[type=text],input[type=number],input[type=date],select,textarea{border:1px solid var(--line);border-radius:6px;padding:7px 9px;background:#fff;color:var(--tx);min-width:0}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-offset:-1px}
+.btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:8px 14px;cursor:pointer;color:var(--tx)}
+.btn:hover{background:#f1f4f8}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
+.btn.pri:hover{filter:brightness(1.08)}
+.btn.dng{color:var(--red)}
+.btn.sm{padding:4px 9px;font-size:13px}
+table.g{width:100%;border-collapse:collapse}
+table.g th{background:#eef2f7;font-weight:500;font-size:13px;color:var(--sub);padding:6px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+table.g td{padding:4px;border-bottom:1px solid #edf0f4;vertical-align:middle}
+table.g td.num{text-align:right;font-variant-numeric:tabular-nums}
+table.g input{width:100%}
+.lines td:first-child{color:var(--sub);text-align:center;width:28px}
+.drug{position:relative}
+.drug .nm{font-weight:500}
+.sug{position:absolute;z-index:20;left:0;top:100%;width:min(640px,90vw);max-height:360px;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.15)}
+.sug div{padding:6px 10px;cursor:pointer;display:flex;gap:8px;align-items:center;border-bottom:1px solid #f0f2f5}
+.sug div.on,.sug div:hover{background:var(--acc-l)}
+.sug .p{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--sub);white-space:nowrap}
+.bd{display:inline-block;font-size:11px;padding:1px 6px;border-radius:9px;white-space:nowrap;border:1px solid}
+.bd.k{color:var(--grn);border-color:var(--grn)}
+.bd.m1,.bd.m3{color:#fff;background:var(--red);border-color:var(--red)}
+.bd.m2{color:var(--red);border-color:var(--red)}
+.bd.m5{color:#fff;background:var(--pur);border-color:var(--pur)}
+.bd.x{color:var(--org);border-color:var(--org)}
+.tot{display:flex;gap:24px;justify-content:flex-end;font-size:15px;margin-top:10px;flex-wrap:wrap}
+.tot b{font-size:20px;font-variant-numeric:tabular-nums}
+.warn{background:#fff4e5;border:1px solid #f0c48a;color:#7a4a0c;border-radius:6px;padding:8px 12px;margin-top:10px;font-size:13px}
+.muted{color:var(--sub);font-size:13px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1f2a37;color:#fff;padding:10px 18px;border-radius:8px;z-index:99;opacity:0;transition:.3s;pointer-events:none}
+.toast.on{opacity:1}
+.hide{display:none!important}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.loading{padding:40px;text-align:center;color:var(--sub)}
+@media (max-width:760px){ .lines .opt{display:none} }
+
+/* ── 印刷用 ── */
+#print{display:none}
+@media print{
+  @page{size:A4 portrait;margin:10mm 12mm}
+  html{zoom:1}
+  body{background:#fff}
+  header,nav,main,.toast{display:none!important}
+  #print{display:block}
+  .pg{page-break-after:always;height:277mm;display:flex;flex-direction:column}
+  .pg:last-child{page-break-after:auto}
+  .half{height:50%;display:flex;flex-direction:column;padding:2mm 0;font-size:10pt;color:#000}
+  .half+.half{border-top:1px dashed #888;padding-top:5mm}
+  .half h3{text-align:center;font-size:15pt;letter-spacing:.3em;margin:0 0 3mm;font-weight:700}
+  .half .hd{display:flex;justify-content:space-between;gap:6mm}
+  .half .to{font-size:12pt;border-bottom:1px solid #000;min-width:80mm;padding-bottom:1mm}
+  .half .to small{font-size:9pt;display:block;margin-top:1mm}
+  .half .me{text-align:left;font-size:9pt;line-height:1.45}
+  .half .me .nm{font-size:12pt;font-weight:700}
+  .half table{width:100%;border-collapse:collapse;margin-top:3mm;font-size:9.5pt}
+  .half th,.half td{border:1px solid #000;padding:.8mm 1.5mm;height:5.6mm}
+  .half th{background:#eee;font-weight:500}
+  .half td.n{text-align:right;font-variant-numeric:tabular-nums}
+  .half .ft{display:flex;gap:4mm;margin-top:2mm}
+  .half .ft .rm{flex:1;border:1px solid #000;padding:1mm 2mm;min-height:16mm;font-size:9pt}
+  .half .ft table{width:62mm;margin:0}
+  .half .sign{margin-top:2mm;text-align:right;font-size:9pt}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>💊 医薬品分譲伝票</h1>
+  <span class="ver" id="verInfo">薬価マスター読込中…</span>
+</header>
+<nav>
+  <button data-t="slip" class="on">分譲納品書</button>
+  <button data-t="req">分譲依頼書</button>
+  <button data-t="hist">分譲履歴</button>
+  <button data-t="set">初期設定</button>
+</nav>
+
+<main>
+  <!-- ── 分譲納品書 ── -->
+  <section id="t-slip">
+    <div class="card">
+      <div class="row">
+        <label class="f" style="flex:1;min-width:220px">分譲先(譲受人)
+          <select id="s-to"></select></label>
+        <label class="f">日付<input type="date" id="s-date"></label>
+        <label class="f">掛け率(一括)
+          <select id="s-rate"></select></label>
+        <button class="btn sm" id="s-rate-all" style="margin-bottom:4px">全行に適用</button>
+      </div>
+    </div>
+    <div class="card">
+      <table class="g lines">
+        <thead><tr><th>#</th><th>薬品名(2文字以上で候補)</th><th>数量</th><th>単位</th><th>薬価</th><th>掛け率%</th><th>単価</th><th>金額</th><th class="opt">期限</th><th class="opt">ロット</th><th></th></tr></thead>
+        <tbody id="s-lines"></tbody>
+      </table>
+      <div class="row" style="margin-top:8px"><button class="btn sm" id="s-add">＋ 行を追加</button>
+        <span class="muted">10行ごとに1枚(納品書＋控)で印刷します</span></div>
+      <label class="f" style="margin-top:12px">備考<textarea id="s-note" rows="2"></textarea></label>
+      <div id="s-warn"></div>
+      <div class="tot"><span>小計 <b id="s-sub">0</b> 円</span><span>消費税 <b id="s-tax">0</b> 円</span><span>合計 <b id="s-total">0</b> 円</span></div>
+    </div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn dng" id="s-clear">クリア</button>
+      <button class="btn" id="s-preview">印刷のみ(履歴に残さない)</button>
+      <button class="btn pri" id="s-issue">🖨 発行(履歴に保存して印刷)</button>
+    </div>
+  </section>
+
+  <!-- ── 分譲依頼書 ── -->
+  <section id="t-req" class="hide">
+    <div class="card">
+      <div class="row">
+        <label class="f" style="flex:1;min-width:220px">依頼先(分譲元)
+          <select id="r-to"></select></label>
+        <label class="f">日付<input type="date" id="r-date"></label>
+      </div>
+    </div>
+    <div class="card">
+      <table class="g lines">
+        <thead><tr><th>#</th><th>薬品名</th><th>数量</th><th>単位</th><th title="チェックした品目は下段の「向精神薬等分譲確認書」に載ります">確認書に載せる</th><th></th></tr></thead>
+        <tbody id="r-lines"></tbody>
+      </table>
+      <div class="row" style="margin-top:8px"><button class="btn sm" id="r-add">＋ 行を追加</button>
+        <span class="muted">向精神薬は自動でチェックされます</span></div>
+    </div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn dng" id="r-clear">クリア</button>
+      <button class="btn pri" id="r-print">🖨 印刷</button>
+    </div>
+  </section>
+
+  <!-- ── 分譲履歴 ── -->
+  <section id="t-hist" class="hide">
+    <div class="card">
+      <div class="row">
+        <label class="f">期間(から)<input type="date" id="h-from"></label>
+        <label class="f">(まで)<input type="date" id="h-to"></label>
+        <label class="f" style="min-width:200px">分譲先<select id="h-dest"></select></label>
+        <label class="f" style="flex:1;min-width:160px">薬品名<input type="text" id="h-q" placeholder="含む文字"></label>
+        <button class="btn" id="h-csv">CSV出力</button>
+      </div>
+    </div>
+    <div class="card" id="h-sum"></div>
+    <div class="card"><div id="h-list"></div></div>
+  </section>
+
+  <!-- ── 初期設定 ── -->
+  <section id="t-set" class="hide">
+    <div class="card">
+      <h2>自薬局データ</h2>
+      <div class="grid2">
+        <label class="f">薬局名<input type="text" id="c-name"></label>
+        <label class="f">住所<input type="text" id="c-addr"></label>
+        <label class="f">TEL<input type="text" id="c-tel"></label>
+        <label class="f">FAX<input type="text" id="c-fax"></label>
+        <label class="f">管理薬剤師<input type="text" id="c-kanri"></label>
+        <label class="f">薬局開設許可番号<input type="text" id="c-kyoka"></label>
+        <label class="f">消費税<select id="c-tax"><option value="1">あり(10%)</option><option value="0">なし</option></select></label>
+        <label class="f">消費税の端数<select id="c-round"><option value="round">四捨五入</option><option value="floor">切り捨て</option></select></label>
+        <label class="f">掛け率の候補(カンマ区切り・%)<input type="text" id="c-rates"></label>
+      </div>
+    </div>
+    <div class="card">
+      <h2>分譲先(取引薬局)</h2>
+      <table class="g"><thead><tr><th>薬局名</th><th>住所</th><th>TEL</th><th>FAX</th><th>開設許可番号</th><th>代表者</th><th>標準掛け率</th><th></th></tr></thead>
+        <tbody id="c-dests"></tbody></table>
+      <button class="btn sm" id="c-add" style="margin-top:8px">＋ 分譲先を追加</button>
+    </div>
+    <div class="card">
+      <h2>データの保存・移行</h2>
+      <p class="muted">データはこのパソコンのブラウザ内に保存されます。パソコン交換やブラウザの履歴削除に備えて、定期的にバックアップを保存してください。</p>
+      <div class="row">
+        <button class="btn" id="b-export">💾 バックアップ保存(JSON)</button>
+        <label class="btn">📂 バックアップから復元<input type="file" id="b-import" accept=".json" hidden></label>
+        <label class="btn">📗 旧Excel(分譲伝票発行.xlsm)から取込<input type="file" id="b-xls" accept=".xlsm,.xlsx" hidden></label>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="print"></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ── 保存データ ──
+const SKEY = 'bunjo_v1';
+let S = load();
+function load(){
+  let s = {};
+  try{ s = JSON.parse(localStorage.getItem(SKEY) || '{}'); }catch(e){}
+  s.me = Object.assign({name:'',addr:'',tel:'',fax:'',kanri:'',kyoka:'',tax:1,round:'round',rates:[100,95,90,85,80,70]}, s.me || {});
+  s.dests = s.dests || [];
+  s.hist = s.hist || [];
+  return s;
+}
+function save(){
+  try{ localStorage.setItem(SKEY, JSON.stringify(S)); }
+  catch(e){ toast('⚠ 保存できませんでした(容量不足の可能性)。バックアップを保存してください'); }
+}
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const yen = n => (Math.round(n) || 0).toLocaleString('ja-JP');
+const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0,10); };
+const jdate = s => { if(!s) return ''; const [y,m,d] = s.split('-'); return `${y}年${+m}月${+d}日`; };
+function toast(m){ const t = $('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2600); }
+
+// ── 薬価マスター ──
+// rows: [code, name, kana, unit, price, mdk, kohatsu, form, haishi, gname]
+let Y = null, YIDX = [], YBYCODE = {};
+const MDK = {1:'麻薬', 2:'毒薬', 3:'覚醒剤原料', 5:'向精神薬'};
+function norm(s){
+  s = String(s || '').normalize('NFKC').toUpperCase();
+  s = s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60)); // ひらがな→カタカナ
+  return s.replace(/[\s　]/g, '');
+}
+async function loadMaster(){
+  try{
+    const r = await fetch('data/yakka.json', {cache:'no-cache'});
+    Y = await r.json();
+    YIDX = Y.rows.map(r => norm(r[1]) + '|' + norm(r[2]) + '|' + norm(r[9]));
+    Y.rows.forEach(r => YBYCODE[r[0]] = r);
+    const v = Y.ver;
+    $('verInfo').textContent = `薬価基準: 支払基金 医薬品マスター ${v.slice(0,4)}/${v.slice(4,6)}/${v.slice(6)}版(${Y.rows.length.toLocaleString()}品目)`;
+    refreshPrices();
+  }catch(e){
+    $('verInfo').textContent = '⚠ 薬価マスターを読み込めませんでした(ネット接続を確認)';
+  }
+}
+function search(q){
+  const t = norm(q).split(/[|]/)[0];
+  if(t.length < 2 || !Y) return [];
+  const toks = String(q).trim().split(/[\s　]+/).map(norm).filter(Boolean);
+  const res = [];
+  for(let i = 0; i < YIDX.length; i++){
+    const s = YIDX[i];
+    if(toks.every(k => s.includes(k))){
+      const r = Y.rows[i];
+      const head = norm(r[1]).startsWith(toks[0]) || norm(r[2]).startsWith(toks[0]) ? 0 : 1;
+      res.push([head, r[1].length, r]);
+      if(res.length > 400) break;
+    }
+  }
+  res.sort((a,b) => a[0]-b[0] || a[1]-b[1]);
+  return res.slice(0, 40).map(x => x[2]);
+}
+function badges(r){
+  if(!r) return '';
+  let h = '';
+  if(r[5]) h += `<span class="bd m${r[5]}">${MDK[r[5]] || '規制'}</span> `;
+  if(r[6]) h += `<span class="bd k">後発</span> `;
+  if(r[8]) h += `<span class="bd x">経過措置 ${String(r[8]).slice(0,4)}/${String(r[8]).slice(4,6)}迄</span> `;
+  return h;
+}
+
+// ── 薬品名オートコンプリート ──
+function attachSuggest(input, onPick){
+  let box = null, items = [], cur = -1;
+  const close = () => { if(box){ box.remove(); box = null; } cur = -1; };
+  const render = () => {
+    items = search(input.value);
+    if(!items.length){ close(); return; }
+    if(!box){ box = document.createElement('div'); box.className = 'sug'; input.parentNode.appendChild(box); }
+    box.innerHTML = items.map((r,i) => `<div data-i="${i}" class="${i===cur?'on':''}"><span>${esc(r[1])}</span>${badges(r)}<span class="p">${r[4].toLocaleString()}円/${esc(r[3])}</span></div>`).join('');
+    box.querySelectorAll('div').forEach(d => d.onmousedown = e => { e.preventDefault(); pick(+d.dataset.i); });
+  };
+  const pick = i => { const r = items[i]; close(); if(r){ input.value = r[1]; onPick(r); } };   // 先に値を確定(古いinputのchangeで上書きされないように)
+  input.addEventListener('input', () => { cur = -1; render(); });
+  input.addEventListener('blur', () => setTimeout(close, 150));
+  input.addEventListener('keydown', e => {
+    if(!box) return;
+    if(e.key === 'ArrowDown'){ cur = Math.min(cur+1, items.length-1); render(); e.preventDefault(); box.children[cur]?.scrollIntoView({block:'nearest'}); }
+    else if(e.key === 'ArrowUp'){ cur = Math.max(cur-1, 0); render(); e.preventDefault(); box.children[cur]?.scrollIntoView({block:'nearest'}); }
+    else if(e.key === 'Enter'){ if(cur < 0) cur = 0; pick(cur); e.preventDefault(); }
+    else if(e.key === 'Escape') close();
+  });
+}
+
+// ── 計算 ──
+const unitPrice = l => Math.round((+l.price || 0) * (+l.rate || 0) / 100 * 100) / 100;     // ROUND(薬価×率/100, 2)
+const amount = l => Math.round((+l.qty || 0) * unitPrice(l));                               // ROUND(数量×単価, 0)
+function totals(lines){
+  const sub = lines.filter(l => l.name).reduce((a,l) => a + amount(l), 0);
+  const raw = S.me.tax == 1 ? sub * 0.1 : 0;
+  const tax = S.me.round === 'floor' ? Math.floor(raw) : Math.round(raw);
+  return {sub, tax, total: sub + tax};
+}
+
+// ── 分譲納品書 ──
+let slip = newSlip();
+function newSlip(){ return {to:'', date:today(), note:'', lines:Array.from({length:10}, () => ({}))}; }
+function rateOptions(sel){ return S.me.rates.map(r => `<option ${+r===+sel?'selected':''}>${r}</option>`).join(''); }
+function destOptions(sel, blank){ return `<option value="">${blank}</option>` + S.dests.map(d => `<option value="${d.id}" ${d.id===sel?'selected':''}>${esc(d.name)}</option>`).join(''); }
+function defaultRate(){ const d = S.dests.find(x => x.id === slip.to); return d && d.rate ? +d.rate : +$('s-rate').value || 100; }
+
+function renderSlip(){
+  $('s-to').innerHTML = destOptions(slip.to, '— 分譲先を選択 —');
+  $('s-date').value = slip.date;
+  $('s-note').value = slip.note;
+  if(!$('s-rate').options.length) $('s-rate').innerHTML = rateOptions(100);
+  const tb = $('s-lines'); tb.innerHTML = '';
+  slip.lines.forEach((l, i) => {
+    const r = l.code ? YBYCODE[l.code] : null;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i+1}</td>
+      <td class="drug"><input type="text" class="nm" value="${esc(l.name||'')}" placeholder="${i ? "" : "例: ろきそ 60 / あむろ 5"}"><div class="muted">${badges(r)}</div></td>
+      <td style="width:76px"><input type="number" min="0" step="any" class="qty" value="${l.qty??''}"></td>
+      <td style="width:56px" class="muted">${esc(l.unit||'')}</td>
+      <td style="width:92px"><input type="number" min="0" step="any" class="price" value="${l.price??''}"></td>
+      <td style="width:78px"><select class="rate">${rateOptions(l.rate ?? 100)}</select></td>
+      <td class="num" style="width:84px">${l.name ? unitPrice(l).toLocaleString() : ''}</td>
+      <td class="num" style="width:90px">${l.name ? yen(amount(l)) : ''}</td>
+      <td class="opt" style="width:120px"><input type="text" class="exp" value="${esc(l.exp||'')}" placeholder="${i ? "" : "2027/03"}"></td>
+      <td class="opt" style="width:110px"><input type="text" class="lot" value="${esc(l.lot||'')}"></td>
+      <td style="width:34px"><button class="btn sm" title="この行を消す">×</button></td>`;
+    const nm = tr.querySelector('.nm');
+    attachSuggest(nm, row => {
+      Object.assign(l, {code:row[0], name:row[1], unit:row[3], price:row[4], _auto:true, rate: l.rate ?? defaultRate()});
+      renderSlip();
+      $('s-lines').children[i].querySelector('.qty').focus();
+    });
+    nm.addEventListener('change', () => { if(!nm.isConnected) return; if(l.name !== nm.value){ l.name = nm.value; l.code = ''; } updSlip(); });
+    tr.querySelector('.qty').oninput = e => { l.qty = e.target.value; updSlip(tr, l); };
+    tr.querySelector('.price').oninput = e => { l.price = e.target.value; l._auto = false; updSlip(tr, l); };
+    tr.querySelector('.rate').onchange = e => { l.rate = +e.target.value; updSlip(tr, l); };
+    tr.querySelector('.exp').oninput = e => l.exp = e.target.value;
+    tr.querySelector('.lot').oninput = e => l.lot = e.target.value;
+    tr.querySelector('button').onclick = () => { slip.lines.splice(i, 1); if(slip.lines.length < 1) slip.lines.push({}); renderSlip(); };
+    tb.appendChild(tr);
+  });
+  updSlip();
+}
+function updSlip(tr, l){
+  if(tr && l){
+    tr.children[6].textContent = l.name ? unitPrice(l).toLocaleString() : '';
+    tr.children[7].textContent = l.name ? yen(amount(l)) : '';
+  }
+  const t = totals(slip.lines);
+  $('s-sub').textContent = yen(t.sub); $('s-tax').textContent = yen(t.tax); $('s-total').textContent = yen(t.total);
+  // 規制区分の注意
+  const w = [];
+  slip.lines.forEach(l => {
+    const r = l.code && YBYCODE[l.code]; if(!r || !r[5]) return;
+    if(r[5] === 1) w.push(`<b>${esc(r[1])}</b>:麻薬です。薬局間の譲渡は原則できません(麻薬小売業者間譲渡許可等が必要)。`);
+    else if(r[5] === 3) w.push(`<b>${esc(r[1])}</b>:覚醒剤原料です。譲渡には法令上の手続きが必要です。`);
+    else if(r[5] === 5) w.push(`<b>${esc(r[1])}</b>:向精神薬です。第1種・第2種は譲渡の記録が必要です。`);
+    else if(r[5] === 2) w.push(`<b>${esc(r[1])}</b>:毒薬です。譲受人の文書等の要否を確認してください。`);
+  });
+  $('s-warn').innerHTML = w.length ? `<div class="warn">⚠ ${w.join('<br>⚠ ')}</div>` : '';
+  if(S.dests.length === 0 && !S.me.name) $('s-warn').innerHTML += `<div class="warn">はじめに「初期設定」で自薬局の情報と分譲先を登録してください。</div>`;
+}
+function slipFilled(){ return slip.lines.filter(l => l.name); }
+function destById(id){ return S.dests.find(d => d.id === id) || null; }
+
+// 印刷: 10行ごとに A4 1枚(上=納品書、下=控)
+function slipHalf(doc, chunk, page, pages, isCopy){
+  const d = doc.dest || {};
+  const me = S.me;
+  const rows = Array.from({length:10}, (_, k) => chunk[k] || null);
+  const t = page === pages ? totals(doc.lines) : null;
+  return `<div class="half">
+    <h3>分譲納品書(兼領収書)${isCopy ? ' 控' : ''}</h3>
+    <div class="hd">
+      <div><div class="to">${esc(d.name || '')}　御中<small>${esc(d.addr || '')}<br>${d.tel ? 'Tel ' + esc(d.tel) : ''}　${d.fax ? 'Fax ' + esc(d.fax) : ''}${d.kyoka ? '<br>開設許可番号 ' + esc(d.kyoka) : ''}</small></div></div>
+      <div class="me">${jdate(doc.date)}${pages > 1 ? `(${page}/${pages})` : ''}<br>${esc(me.addr)}<br><span class="nm">${esc(me.name)}</span><br>Tel ${esc(me.tel)}　Fax ${esc(me.fax)}<br>薬局開設許可番号 ${esc(me.kyoka)}<br>管理薬剤師 ${esc(me.kanri)}</div>
+    </div>
+    <table><thead><tr><th style="width:40%">薬品名</th><th>数量</th><th>薬価</th><th>掛率</th><th>単価</th><th>金額</th><th>期限</th><th>ロット</th></tr></thead><tbody>
+    ${rows.map(l => l ? `<tr><td>${esc(l.name)}</td><td class="n">${esc(l.qty)}${esc(l.unit||'')}</td><td class="n">${(+l.price).toLocaleString()}</td><td class="n">${l.rate}%</td><td class="n">${unitPrice(l).toLocaleString()}</td><td class="n">${yen(amount(l))}</td><td>${esc(l.exp||'')}</td><td>${esc(l.lot||'')}</td></tr>` : '<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
+    </tbody></table>
+    <div class="ft"><div class="rm">備考　${esc(doc.note||'')}</div>
+      <table><tr><th>小計</th><td class="n">${t ? yen(t.sub) : ''}</td></tr><tr><th>消費税</th><td class="n">${t ? yen(t.tax) : ''}</td></tr><tr><th>合計</th><td class="n">${t ? yen(t.total) : ''}</td></tr></table></div>
+    ${isCopy ? '<div class="sign">譲受人(受領印)　＿＿＿＿＿＿＿＿＿＿＿＿　㊞</div>' : ''}
+  </div>`;
+}
+function printSlip(doc){
+  const pages = Math.max(1, Math.ceil(doc.lines.length / 10));
+  let h = '';
+  for(let p = 0; p < pages; p++){
+    const ch = doc.lines.slice(p*10, p*10+10);
+    h += `<div class="pg">${slipHalf(doc, ch, p+1, pages, false)}${slipHalf(doc, ch, p+1, pages, true)}</div>`;
+  }
+  $('print').innerHTML = h;
+  setTimeout(() => window.print(), 50);
+}
+function slipDoc(){
+  return {id:uid(), date:slip.date, dest:destById(slip.to) || {name:''}, destId:slip.to, note:slip.note,
+    lines: slipFilled().map(l => ({code:l.code||'', name:l.name, qty:+l.qty||0, unit:l.unit||'', price:+l.price||0, rate:+l.rate||100, exp:l.exp||'', lot:l.lot||''})),
+    ver: Y ? Y.ver : ''};
+}
+function checkSlip(){
+  if(!slipFilled().length){ toast('薬品が入力されていません'); return false; }
+  if(!slip.to){ toast('分譲先を選択してください'); return false; }
+  if(slipFilled().some(l => !(+l.qty > 0))){ toast('数量が未入力の行があります'); return false; }
+  const ng = slipFilled().filter(l => { const r = l.code && YBYCODE[l.code]; return r && (r[5] === 1 || r[5] === 3); });
+  if(ng.length && !confirm(`麻薬・覚醒剤原料が含まれています:\n${ng.map(l => '・' + l.name).join('\n')}\n\n必要な許可・手続きを確認済みの場合のみ発行してください。発行しますか?`)) return false;
+  return true;
+}
+
+// 薬価改定時: 未発行の伝票は最新薬価に追従(手で変えた薬価は変えない)
+function refreshPrices(){
+  slip.lines.forEach(l => { const r = l.code && YBYCODE[l.code]; if(r && l._auto !== false && +l.price !== r[4]){ l.price = r[4]; } });
+  renderSlip(); renderReq();
+}
+
+// ── 分譲依頼書 ──
+let req = newReq();
+function newReq(){ return {to:'', date:today(), lines:Array.from({length:10}, () => ({}))}; }
+function renderReq(){
+  $('r-to').innerHTML = destOptions(req.to, '— 依頼先を選択 —');
+  $('r-date').value = req.date;
+  const tb = $('r-lines'); tb.innerHTML = '';
+  req.lines.forEach((l, i) => {
+    const r = l.code ? YBYCODE[l.code] : null;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i+1}</td>
+      <td class="drug"><input type="text" class="nm" value="${esc(l.name||'')}"><div class="muted">${badges(r)}</div></td>
+      <td style="width:90px"><input type="number" min="0" step="any" class="qty" value="${l.qty??''}"></td>
+      <td style="width:70px" class="muted">${esc(l.unit||'')}</td>
+      <td style="width:120px;text-align:center"><input type="checkbox" class="chk" ${l.chk?'checked':''}></td>
+      <td style="width:34px"><button class="btn sm">×</button></td>`;
+    const nm = tr.querySelector('.nm');
+    attachSuggest(nm, row => {
+      Object.assign(l, {code:row[0], name:row[1], unit:row[3], chk: row[5] === 5 || row[5] === 2});
+      renderReq(); $('r-lines').children[i].querySelector('.qty').focus();
+    });
+    nm.addEventListener('change', () => { if(!nm.isConnected) return; if(l.name !== nm.value){ l.name = nm.value; l.code = ''; } });
+    tr.querySelector('.qty').oninput = e => l.qty = e.target.value;
+    tr.querySelector('.chk').onchange = e => l.chk = e.target.checked;
+    tr.querySelector('button').onclick = () => { req.lines.splice(i, 1); if(!req.lines.length) req.lines.push({}); renderReq(); };
+    tb.appendChild(tr);
+  });
+}
+function printReq(){
+  const ls = req.lines.filter(l => l.name);
+  if(!ls.length){ toast('薬品が入力されていません'); return; }
+  const d = destById(req.to) || {}, me = S.me;
+  const pages = Math.ceil(ls.length / 10);
+  let h = '';
+  for(let p = 0; p < pages; p++){
+    const ch = ls.slice(p*10, p*10+10), rows = Array.from({length:10}, (_, k) => ch[k] || null);
+    const chk = ch.filter(l => l.chk), crow = Array.from({length:10}, (_, k) => chk[k] || null);
+    const meBlock = `<div class="me">${jdate(req.date)}<br>${esc(me.addr)}<br><span class="nm">${esc(me.name)}</span><br>Tel ${esc(me.tel)}　Fax ${esc(me.fax)}</div>`;
+    h += `<div class="pg">
+      <div class="half"><h3>分譲依頼書</h3>
+        <div class="hd"><div><div class="to">${esc(d.name||'')}　様</div><p>いつもお世話になっております。<br>下記の分譲をお願い致します。</p></div>${meBlock}</div>
+        <table><thead><tr><th style="width:70%">薬品名</th><th>数量</th></tr></thead><tbody>
+        ${rows.map(l => l ? `<tr><td>${esc(l.name)}</td><td class="n">${esc(l.qty||'')}${esc(l.unit||'')}</td></tr>` : '<tr><td></td><td></td></tr>').join('')}</tbody></table></div>
+      <div class="half"><h3>向精神薬等分譲確認書</h3>
+        <div class="hd"><div><div class="to">${esc(d.name||'')}　様</div></div>
+          <div class="me">${jdate(req.date)}<br>${esc(me.addr)}<br><span class="nm">${esc(me.name)}</span><br>管理薬剤師 ${esc(me.kanri)}　㊞<br>Tel ${esc(me.tel)}　Fax ${esc(me.fax)}</div></div>
+        <table><thead><tr><th style="width:70%">薬品名</th><th>数量</th></tr></thead><tbody>
+        ${crow.map(l => l ? `<tr><td>${esc(l.name)}</td><td class="n">${esc(l.qty||'')}${esc(l.unit||'')}</td></tr>` : '<tr><td></td><td></td></tr>').join('')}</tbody></table></div>
+    </div>`;
+  }
+  $('print').innerHTML = h;
+  setTimeout(() => window.print(), 50);
+}
+
+// ── 分譲履歴 ──
+function histFiltered(){
+  const f = $('h-from').value, t = $('h-to').value, dst = $('h-dest').value, q = norm($('h-q').value);
+  return S.hist.filter(h => (!f || h.date >= f) && (!t || h.date <= t) && (!dst || h.destId === dst || (dst === '_n:' + h.dest.name)))
+    .map(h => ({...h, lines: q ? h.lines.filter(l => norm(l.name).includes(q)) : h.lines}))
+    .filter(h => h.lines.length)
+    .sort((a,b) => b.date.localeCompare(a.date) || (b.ts||0) - (a.ts||0));
+}
+function renderHist(){
+  const sel = $('h-dest').value;
+  const names = [...new Set(S.hist.filter(h => !h.destId || !destById(h.destId)).map(h => h.dest.name))].filter(Boolean);
+  $('h-dest').innerHTML = destOptions(sel, 'すべて') + names.map(n => `<option value="_n:${esc(n)}">${esc(n)}(旧)</option>`).join('');
+  $('h-dest').value = sel;
+  const L = histFiltered();
+  // 分譲先別の集計
+  const by = {};
+  L.forEach(h => { const k = h.dest.name || '(未設定)'; by[k] = by[k] || {n:0, sub:0}; by[k].n++; by[k].sub += h.lines.reduce((a,l) => a + amount(l), 0); });
+  const ks = Object.keys(by);
+  $('h-sum').innerHTML = `<h2>分譲先別 集計(${L.length}件)</h2>` + (ks.length ? `<table class="g"><thead><tr><th>分譲先</th><th>件数</th><th>金額(税抜)</th></tr></thead><tbody>${ks.map(k => `<tr><td>${esc(k)}</td><td class="num">${by[k].n}</td><td class="num">${yen(by[k].sub)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">該当する履歴はありません</p>');
+  $('h-list').innerHTML = L.length ? `<table class="g"><thead><tr><th>日付</th><th>分譲先</th><th>薬品名</th><th>数量</th><th>薬価</th><th>掛率</th><th>金額</th><th>期限</th><th>ロット</th><th></th></tr></thead><tbody>` +
+    L.map(h => h.lines.map((l, k) => `<tr>${k ? '<td></td><td></td>' : `<td>${h.date}</td><td>${esc(h.dest.name)}</td>`}<td>${esc(l.name)}</td><td class="num">${l.qty}${esc(l.unit)}</td><td class="num">${(+l.price).toLocaleString()}</td><td class="num">${l.rate}%</td><td class="num">${yen(amount(l))}</td><td>${esc(l.exp)}</td><td>${esc(l.lot)}</td>${k ? '<td></td>' : `<td style="white-space:nowrap"><button class="btn sm" data-re="${h.id}">再印刷</button> <button class="btn sm dng" data-del="${h.id}">削除</button></td>`}</tr>`).join('')).join('') + '</tbody></table>' : '';
+  $('h-list').querySelectorAll('[data-re]').forEach(b => b.onclick = () => { const h = S.hist.find(x => x.id === b.dataset.re); if(h) printSlip(h); });
+  $('h-list').querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    if(!confirm('この分譲伝票を履歴から削除しますか?')) return;
+    S.hist = S.hist.filter(x => x.id !== b.dataset.del); save(); renderHist();
+  });
+}
+function histCsv(){
+  const L = histFiltered();
+  const rows = [['日付','分譲先','薬品コード','薬品名','数量','単位','薬価','掛け率','単価','金額','期限','ロット']];
+  L.forEach(h => h.lines.forEach(l => rows.push([h.date, h.dest.name, l.code, l.name, l.qty, l.unit, l.price, l.rate, unitPrice(l), amount(l), l.exp, l.lot])));
+  const csv = '﻿' + rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = `分譲履歴_${today()}.csv`; a.click();
+}
+
+// ── 初期設定 ──
+const ME_F = {name:'c-name', addr:'c-addr', tel:'c-tel', fax:'c-fax', kanri:'c-kanri', kyoka:'c-kyoka', tax:'c-tax', round:'c-round'};
+function renderSet(){
+  Object.entries(ME_F).forEach(([k, id]) => $(id).value = S.me[k] ?? '');
+  $('c-rates').value = S.me.rates.join(',');
+  const tb = $('c-dests');
+  tb.innerHTML = S.dests.map(d => `<tr data-id="${d.id}">${['name','addr','tel','fax','kyoka','rep'].map(k => `<td><input type="text" data-k="${k}" value="${esc(d[k]||'')}"></td>`).join('')}<td style="width:90px"><select data-k="rate">${rateOptions(d.rate || 100)}</select></td><td><button class="btn sm dng">削除</button></td></tr>`).join('')
+    || '<tr><td colspan="8" class="muted">まだ登録がありません</td></tr>';
+  tb.querySelectorAll('tr[data-id]').forEach(tr => {
+    const d = destById(tr.dataset.id);
+    tr.querySelectorAll('[data-k]').forEach(inp => inp.onchange = () => { d[inp.dataset.k] = inp.dataset.k === 'rate' ? +inp.value : inp.value.trim(); save(); });
+    tr.querySelector('button').onclick = () => { if(confirm(`「${d.name}」を分譲先から削除しますか?(履歴は残ります)`)){ S.dests = S.dests.filter(x => x !== d); save(); renderSet(); } };
+  });
+}
+Object.entries(ME_F).forEach(([k, id]) => $(id).addEventListener('change', e => { S.me[k] = e.target.value; save(); updSlip(); }));
+$('c-rates').addEventListener('change', e => {
+  const r = e.target.value.split(/[,、\s]+/).map(Number).filter(n => n > 0 && n <= 200);
+  S.me.rates = r.length ? [...new Set(r)] : [100]; save(); renderSet(); $('s-rate').innerHTML = rateOptions(100); renderSlip();
+});
+$('c-add').onclick = () => { S.dests.push({id:uid(), name:'', rate:100}); save(); renderSet(); $('c-dests').lastElementChild.querySelector('input').focus(); };
+
+// バックアップ
+$('b-export').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 1)], {type:'application/json'}));
+  a.download = `分譲伝票バックアップ_${today()}.json`; a.click();
+};
+$('b-import').onchange = async e => {
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    const d = JSON.parse(await f.text());
+    if(!d.me || !Array.isArray(d.hist)) throw 0;
+    if(!confirm(`バックアップで現在のデータを置き換えます(分譲先${(d.dests||[]).length}件・履歴${d.hist.length}件)。よろしいですか?`)) return;
+    localStorage.setItem(SKEY + '_before_restore', JSON.stringify(S));
+    localStorage.setItem(SKEY, JSON.stringify(d)); S = load(); renderAll(); toast('復元しました');
+  }catch(_){ toast('バックアップファイルを読み込めませんでした'); }
+  e.target.value = '';
+};
+// 旧Excel(分譲伝票発行.xlsm)の「初期設定」「分譲履歴」を取込
+$('b-xls').onchange = async e => {
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    const wb = XLSX.read(await f.arrayBuffer(), {type:'array', cellDates:true});
+    const st = wb.Sheets['初期設定'], hs = wb.Sheets['分譲履歴'];
+    if(!st) throw 0;
+    const v = a => { const c = st[a]; return c ? String(c.w ?? c.v).trim() : ''; };
+    const me = {addr:v('B2'), name:v('B3'), tel:v('B4'), fax:v('B5'), kanri:v('B6'), tax: v('B7') === 'なし' ? 0 : 1, kyoka: v('B8')};
+    const rates = []; for(let r = 10; r <= 20; r++){ const n = +v('B'+r); if(n > 0) rates.push(n); }
+    const dests = [];
+    for(let r = 22; r <= 135; r++){ const n = v('B'+r); if(n) dests.push({id:uid(), name:n, addr:v('C'+r), tel:v('D'+r), fax:v('E'+r), kyoka:v('F'+r), rep:v('G'+r), rate:100}); }
+    const hist = [];
+    if(hs){
+      const rows = XLSX.utils.sheet_to_json(hs, {header:1, raw:true});
+      let cur = null;
+      rows.slice(1).forEach(r => {
+        if(!r[2]) return;
+        const dt = r[0] instanceof Date ? r[0] : (typeof r[0] === 'number' ? new Date(Math.round((r[0] - 25569) * 864e5)) : null);
+        if(dt){ const ds = new Date(dt.getTime() - dt.getTimezoneOffset()*6e4).toISOString().slice(0,10); cur = {id:uid(), date:ds, dest:{name:String(r[1]||'')}, destId:'', note:'', lines:[], ver:'旧Excel'}; hist.push(cur); }
+        if(!cur) return;
+        const d = dests.find(x => x.name === cur.dest.name); if(d){ cur.destId = d.id; cur.dest = {...d}; }
+        cur.lines.push({code:'', name:String(r[2]), qty:+r[3]||0, unit:String(r[4]||''), price:+r[5]||0, rate:+r[6]||100, exp: r[9] instanceof Date ? r[9].toISOString().slice(0,10) : String(r[9]||''), lot:String(r[11]||'')});
+      });
+    }
+    if(!confirm(`旧Excelから取り込みます\n・自薬局: ${me.name || '(空)'}\n・分譲先: ${dests.length}件\n・履歴: ${hist.length}件\n\n現在の自薬局情報と分譲先は置き換え、履歴は追加します。よろしいですか?`)) return;
+    localStorage.setItem(SKEY + '_before_xls', JSON.stringify(S));
+    Object.assign(S.me, me); if(rates.length) S.me.rates = [...new Set(rates)];
+    S.dests = dests; S.hist = S.hist.concat(hist); save(); renderAll(); toast('旧Excelから取り込みました');
+  }catch(_){ toast('このExcelは読み込めませんでした(「初期設定」シートが必要です)'); }
+  e.target.value = '';
+};
+
+// ── イベント ──
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
+  ['slip','req','hist','set'].forEach(t => $('t-' + t).classList.toggle('hide', t !== b.dataset.t));
+  if(b.dataset.t === 'hist') renderHist();
+  if(b.dataset.t === 'set') renderSet();
+  if(b.dataset.t === 'slip') renderSlip();
+  if(b.dataset.t === 'req') renderReq();
+});
+$('s-to').onchange = e => {
+  slip.to = e.target.value;
+  const d = destById(slip.to);
+  if(d && d.rate){ $('s-rate').value = d.rate; slip.lines.forEach(l => { if(l.name) l.rate = +d.rate; }); renderSlip(); }
+};
+$('s-date').onchange = e => slip.date = e.target.value;
+$('s-note').oninput = e => slip.note = e.target.value;
+$('s-rate-all').onclick = () => { const r = +$('s-rate').value; slip.lines.forEach(l => { if(l.name) l.rate = r; }); renderSlip(); };
+$('s-add').onclick = () => { slip.lines.push({}); renderSlip(); };
+$('s-clear').onclick = () => { if(confirm('入力中の納品書をクリアしますか?')){ slip = newSlip(); renderSlip(); } };
+$('s-preview').onclick = () => { if(checkSlip()) printSlip(slipDoc()); };
+$('s-issue').onclick = () => {
+  if(!checkSlip()) return;
+  const doc = slipDoc(); doc.ts = Date.now();
+  S.hist.push(doc); save();
+  printSlip(doc);
+  toast('履歴に保存しました');
+  slip = newSlip(); renderSlip();
+};
+$('r-to').onchange = e => req.to = e.target.value;
+$('r-date').onchange = e => req.date = e.target.value;
+$('r-add').onclick = () => { req.lines.push({}); renderReq(); };
+$('r-clear').onclick = () => { if(confirm('入力中の依頼書をクリアしますか?')){ req = newReq(); renderReq(); } };
+$('r-print').onclick = printReq;
+['h-from','h-to','h-dest','h-q'].forEach(id => $(id).addEventListener('input', renderHist));
+$('h-csv').onclick = histCsv;
+window.addEventListener('afterprint', () => $('print').innerHTML = '');
+
+function renderAll(){ renderSlip(); renderReq(); renderSet(); renderHist(); }
+renderAll();
+if(!S.me.name) document.querySelector('nav button[data-t=set]').click();
+loadMaster();
+</script>
+</body>
+</html>

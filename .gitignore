@@ -1,0 +1,11 @@
+# Claude Code / ローカル専用メモ
+.claude/
+CLAUDE.md
+# 顧客から預かった実データ(個人・薬局情報)は絶対に入れない
+*.xlsm
+*.xlsx
+# 一時ファイル
+*.tmp
+*.bak
+Thumbs.db
+.DS_Store
