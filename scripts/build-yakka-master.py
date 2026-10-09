@@ -59,15 +59,29 @@ def main():
     text = z.read(name).decode('cp932', 'replace')
 
     today = int(datetime.date.today().strftime('%Y%m%d'))
-    rows, skipped = [], 0
+    rows, skipped, excl = [], 0, {'請求用コード(点数・減点・評価療養等)': 0, '(類)OTC類似薬の給付対象額': 0, '(選)選定療養の給付対象額': 0}
     for c in csv.reader(io.StringIO(text)):
         if len(c) < 38 or c[1] != 'Y':
             continue
-        haishi = int(c[30] or 0)
-        if haishi == 99999999:
-            haishi = 0
-        if haishi and haishi < today:      # 経過措置期限切れは除外
+        # ⚠ 分譲に使うのは「薬価」そのもの。薬価でないレコードは除外する
+        #   金額種別(c[10])≠1 … 歯科の点数・薬剤料減点などの請求用コード
+        #   名称末尾「（類）」 … OTC類似薬の保険給付対象額(薬価×3/4)
+        #   名称末尾「（選）」 … 長期収載品の選定療養における保険給付対象額
+        #   (2026-10 厚労省 薬価基準収載品目リストと全件照合し、上記以外は全品目一致を確認)
+        if c[10] != '1' or not c[31].strip():               # 薬価基準コードが無い=評価療養等の請求用コード
+            excl['請求用コード(点数・減点・評価療養等)'] += 1; continue
+        tail = nk(c[4]).rstrip()
+        if tail.endswith('(類)'):
+            excl['(類)OTC類似薬の給付対象額'] += 1; continue
+        if tail.endswith('(選)'):
+            excl['(選)選定療養の給付対象額'] += 1; continue
+        haishi = int(c[30] or 0)                           # 廃止年月日
+        if haishi and haishi != 99999999 and haishi < today:
             skipped += 1; continue
+        keika = int(c[33] or 0) if c[33].isdigit() else 0  # 経過措置年月日(この日まで使用可)
+        if keika and keika < today:                        # 経過措置期限切れは除外
+            skipped += 1; continue
+        haishi = keika
         try:
             price = float(c[11] or 0)
         except ValueError:
@@ -97,7 +111,7 @@ def main():
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, 'w', encoding='utf-8') as f:
         json.dump(out, f, ensure_ascii=False, separators=(',', ':'))
-    log(f'出力: {OUT}  版={ver} 件数={len(rows)} (期限切れ除外 {skipped})  {os.path.getsize(OUT)//1024}KB')
+    log(f'出力: {OUT}  版={ver} 件数={len(rows)} (期限切れ除外 {skipped} / 薬価でないレコード除外 {excl})  {os.path.getsize(OUT)//1024}KB')
 
 if __name__ == '__main__':
     main()

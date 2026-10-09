@@ -90,7 +90,7 @@ table.g input{width:100%}
   .pg:last-child{page-break-after:auto}
   .half{height:50%;display:flex;flex-direction:column;padding:2mm 0;font-size:9.5pt;color:#000;overflow:hidden}
   .half+.half{border-top:1px dashed #888;padding-top:5mm}
-  .half h3{text-align:center;font-size:14pt;letter-spacing:.3em;margin:0 0 2mm;font-weight:700}
+  .half h3{text-align:center;font-size:14pt;letter-spacing:.3em;margin:0 0 1.5mm;font-weight:700}
   .half .hd{display:flex;justify-content:space-between;gap:6mm}
   .half .to{font-size:12pt;border-bottom:1px solid #000;min-width:80mm;padding-bottom:1mm}
   .half .to small{font-size:8.5pt;display:block;margin-top:1mm;line-height:1.3}
@@ -98,13 +98,15 @@ table.g input{width:100%}
   .half .me .nm{font-size:12pt;font-weight:700}
   .half table{width:100%;border-collapse:collapse;margin-top:2mm;font-size:9pt;table-layout:fixed}
   .half th,.half td{border:1px solid #000;padding:.4mm 1.2mm;height:5.4mm;white-space:nowrap;overflow:hidden;line-height:1.15}
-  .half td.wrap{white-space:normal}
+  .half td.wrap{white-space:normal;word-break:break-all;line-height:1.02;padding-top:.2mm;padding-bottom:.2mm}
   .half th{background:#eee;font-weight:500}
   .half td.n{text-align:right;font-variant-numeric:tabular-nums}
   .half .ft{display:flex;gap:4mm;margin-top:2mm}
-  .half .ft .rm{flex:1;border:1px solid #000;padding:1mm 2mm;min-height:14mm;font-size:8.5pt;overflow:hidden}
+  .half .ft .rm{flex:1;border:1px solid #000;padding:1mm 2mm;min-height:10mm;font-size:8.5pt;overflow:hidden}
   .half .ft table{width:62mm;margin:0}
-  .half .sign{margin-top:2mm;text-align:right;font-size:9pt}
+  .half .ft .lc{flex:1;display:flex;flex-direction:column;gap:1mm}
+  .half .rcpt{text-align:right;font-size:9.5pt}
+  .half .sign{margin-top:1.5mm;text-align:right;font-size:9pt}
   .half .ft table{table-layout:auto}
 }
 </style>
@@ -357,12 +359,14 @@ function attachSuggest(input, onPick){
 // ── 計算 ──
 const num = v => parseFloat(String(v ?? '').normalize('NFKC').replace(/[,，\s]/g, '')) || 0;   // 全角数字・カンマ可
 const rateOf = l => (l.rate === undefined || l.rate === null || l.rate === '') ? 100 : num(l.rate);
-const unitPrice = l => Math.round(num(l.price) * rateOf(l) / 100 * 100) / 100;     // ROUND(薬価×率/100, 2)
-const amount = l => Math.round(num(l.qty) * unitPrice(l));                         // ROUND(数量×単価, 0)
+// ⚠ 小数の誤差対策: 16.65×50 は計算機上 832.4999… になるため、6桁で丸めてから四捨五入する(Excel の ROUND と同じ結果にする)
+const rnd = (v, d) => { const p = 10 ** d; return Math.round(+(v * p).toFixed(6)) / p; };
+const unitPrice = l => rnd(num(l.price) * rateOf(l) / 100, 2);     // ROUND(薬価×率/100, 2)
+const amount = l => rnd(num(l.qty) * unitPrice(l), 0);             // ROUND(数量×単価, 0)
 function totals(lines){
   const sub = lines.filter(l => l.name).reduce((a,l) => a + amount(l), 0);
-  const raw = S.me.tax == 1 ? sub * 0.1 : 0;
-  const tax = S.me.round === 'floor' ? Math.floor(raw) : Math.round(raw);
+  const raw = S.me.tax == 1 ? sub / 10 : 0;                         // 整数÷10 は誤差なし(×0.1 だと誤差が出る)
+  const tax = S.me.round === 'floor' ? Math.floor(raw) : rnd(raw, 0);
   return {sub, tax, total: sub + tax};
 }
 
@@ -437,10 +441,13 @@ function slipFilled(){ return slip.lines.filter(l => l.name); }
 function destById(id){ return S.dests.find(d => d.id === id) || null; }
 
 // 薬品名セル: 列幅(mm)に1行で収まるよう文字サイズを自動縮小(最小7pt・それでも長ければ7ptで2行)
-function nameTd(name, mm){
-  const u = [...String(name || '')].reduce((a, c) => a + (/[ -~｡-ﾟ]/.test(c) ? .62 : 1), 0);
+// 薬品名は7pt未満になるなら2行に折返し。数値・期限・ロットは折り返さず最小5.5ptまで縮小(数字が分断されないように)
+function nameTd(name, mm, cls, noWrap){
+  const u = [...String(name ?? '')].reduce((a, c) => a + (/[ -~｡-ﾟ]/.test(c) ? .62 : 1), 0);
   const pt = u ? Math.min(9, mm / (u * 0.3528)) : 9;
-  return pt >= 7 ? `<td style="font-size:${pt.toFixed(1)}pt">${esc(name)}</td>` : `<td class="wrap" style="font-size:7.5pt">${esc(name)}</td>`;
+  const c = cls ? ` class="${cls}"` : '';
+  if(noWrap) return `<td${c} style="font-size:${Math.max(5.5, pt).toFixed(1)}pt">${esc(name)}</td>`;
+  return pt >= 7 ? `<td${c} style="font-size:${pt.toFixed(1)}pt">${esc(name)}</td>` : `<td class="wrap ${cls||''}" style="font-size:7pt">${esc(name)}</td>`;
 }
 const COLS = w => `<colgroup>${w.map(x => `<col style="width:${x}%">`).join('')}</colgroup>`;
 // 印刷: 10行ごとに A4 1枚(上=納品書、下=控)
@@ -455,10 +462,10 @@ function slipHalf(doc, chunk, page, pages, isCopy){
       <div><div class="to">${esc(d.name || '')}　御中<small>${esc(d.addr || '')}<br>${d.tel ? 'Tel ' + esc(d.tel) : ''}　${d.fax ? 'Fax ' + esc(d.fax) : ''}${d.kyoka ? '<br>開設許可番号 ' + esc(d.kyoka) : ''}</small></div></div>
       <div class="me">${jdate(doc.date)}${pages > 1 ? `(${page}/${pages})` : ''}<br>${esc(me.addr)}<br><span class="nm">${esc(me.name)}</span><br>Tel ${esc(me.tel)}　Fax ${esc(me.fax)}${me.kyoka ? '<br>薬局開設許可番号 ' + esc(me.kyoka) : ''}${me.kanri ? '<br>管理薬剤師 ' + esc(me.kanri) : ''}${me.inv ? '<br>登録番号 ' + esc(me.inv) : ''}</div>
     </div>
-    <table>${COLS([42,9,7,6,8,9,9,10])}<thead><tr><th>薬品名</th><th>数量</th><th>薬価</th><th>掛率</th><th>単価</th><th>金額</th><th>期限</th><th>ロット</th></tr></thead><tbody>
-    ${rows.map(l => l ? `<tr>${nameTd(l.name, 71)}<td class="n">${esc(l.qty)}${esc(l.unit||'')}</td><td class="n">${(+l.price).toLocaleString()}</td><td class="n">${l.rate}%</td><td class="n">${unitPrice(l).toLocaleString()}</td><td class="n">${yen(amount(l))}</td><td>${esc(l.exp||'')}</td><td>${esc(l.lot||'')}</td></tr>` : '<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
+    <table>${COLS([45,8,7,6,7.5,8,9,9.5])}<thead><tr><th>薬品名</th><th>数量</th><th>薬価</th><th>掛率</th><th>単価</th><th>金額</th><th>期限</th><th>ロット</th></tr></thead><tbody>
+    ${rows.map(l => l ? `<tr>${nameTd(l.name, 77)}${nameTd(l.qty + (l.unit||''), 12.5, 'n', 1)}${nameTd((+l.price).toLocaleString(), 10.5, 'n', 1)}${nameTd(l.rate + '%', 8.5, 'n', 1)}${nameTd(unitPrice(l).toLocaleString(), 11.5, 'n', 1)}${nameTd(yen(amount(l)), 12.5, 'n', 1)}${nameTd(l.exp||'', 14, '', 1)}${nameTd(l.lot||'', 15, '', 1)}</tr>` : '<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
     </tbody></table>
-    <div class="ft"><div class="rm">備考　${esc(doc.note||'')}</div>
+    <div class="ft"><div class="lc"><div class="rm">備考　${esc(doc.note||'')}</div>${t ? '<div class="rcpt">上記金額を正に領収いたしました。</div>' : ''}</div>
       <table><tr><th>${S.me.tax == 1 ? '小計(10%対象)' : '小計'}</th><td class="n">${t ? yen(t.sub) : ''}</td></tr><tr><th>${S.me.tax == 1 ? '消費税(10%)' : '消費税'}</th><td class="n">${t ? yen(t.tax) : ''}</td></tr><tr><th>合計</th><td class="n">${t ? yen(t.total) : ''}</td></tr></table></div>
     ${isCopy ? '<div class="sign">譲受人(受領印)　＿＿＿＿＿＿＿＿＿＿＿＿　㊞</div>' : ''}
   </div>`;
@@ -538,12 +545,12 @@ function printReq(){
       <div class="half"><h3>分譲依頼書</h3>
         <div class="hd"><div><div class="to">${esc(d.name||'')}　様</div><p>いつもお世話になっております。<br>下記の分譲をお願い致します。</p></div>${meBlock}</div>
         <table>${COLS([75,25])}<thead><tr><th>薬品名</th><th>数量</th></tr></thead><tbody>
-        ${rows.map(l => l ? `<tr>${nameTd(l.name, 128)}<td class="n">${esc(l.qty||'')}${esc(l.unit||'')}</td></tr>` : '<tr><td></td><td></td></tr>').join('')}</tbody></table></div>
+        ${rows.map(l => l ? `<tr>${nameTd(l.name, 128)}${nameTd((l.qty||'') + (l.unit||''), 42, 'n', 1)}</tr>` : '<tr><td></td><td></td></tr>').join('')}</tbody></table></div>
       <div class="half"><h3>向精神薬等分譲確認書</h3>
         <div class="hd"><div><div class="to">${esc(d.name||'')}　様</div></div>
           <div class="me">${jdate(req.date)}<br>${esc(me.addr)}<br><span class="nm">${esc(me.name)}</span><br>管理薬剤師 ${esc(me.kanri)}　㊞<br>Tel ${esc(me.tel)}　Fax ${esc(me.fax)}</div></div>
         <table>${COLS([75,25])}<thead><tr><th>薬品名</th><th>数量</th></tr></thead><tbody>
-        ${crow.map(l => l ? `<tr>${nameTd(l.name, 128)}<td class="n">${esc(l.qty||'')}${esc(l.unit||'')}</td></tr>` : '<tr><td></td><td></td></tr>').join('')}</tbody></table></div>
+        ${crow.map(l => l ? `<tr>${nameTd(l.name, 128)}${nameTd((l.qty||'') + (l.unit||''), 42, 'n', 1)}</tr>` : '<tr><td></td><td></td></tr>').join('')}</tbody></table></div>
     </div>`;
   }
   $('print').innerHTML = h;
