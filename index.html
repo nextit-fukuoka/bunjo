@@ -80,12 +80,13 @@ table.g input{width:100%}
 /* ── 印刷用 ── */
 #print{display:none}
 @media print{
-  @page{size:A4 portrait;margin:10mm 12mm}
+  @page{size:A4 portrait;margin:0}   /* 余白0 = ブラウザが付けるURL・日付・ページ番号を出さない(余白は.pgの内側で取る) */
   html{zoom:1}
   body{background:#fff}
-  header,nav,main,.toast{display:none!important}
+  header,nav,main,.toast,#banner,.modal,footer{display:none!important}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #print{display:block}
-  .pg{page-break-after:always;height:277mm;display:flex;flex-direction:column}
+  .pg{page-break-after:always;height:296mm;padding:10mm 12mm;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column}
   .pg:last-child{page-break-after:auto}
   .half{height:50%;display:flex;flex-direction:column;padding:2mm 0;font-size:9.5pt;color:#000;overflow:hidden}
   .half+.half{border-top:1px dashed #888;padding-top:5mm}
@@ -194,6 +195,14 @@ table.g input{width:100%}
 
   <!-- ── 初期設定 ── -->
   <section id="t-set" class="hide">
+    <div class="card" id="guide" style="border-color:var(--acc);background:var(--acc-l)">
+      <h2>はじめにご確認ください(3ステップ)</h2>
+      <ol style="margin:0;padding-left:1.4em;line-height:1.9">
+        <li><b>自薬局データ</b>:「🔍 保険薬局一覧から入力」で薬局名・住所・電話番号が入ります。FAX・管理薬剤師・開設許可番号を追記してください</li>
+        <li><b>分譲先</b>:「🔍 薬局を検索して追加」で取引先の薬局を登録します(旧Excelをお使いの場合は下の「旧Excelから取込」で一括登録できます)</li>
+        <li><b>自動バックアップ</b>:下の「📁 自動バックアップ先を設定」で、OneDrive などに保存先を作っておくと安心です</li>
+      </ol>
+    </div>
     <div class="card">
       <h2>自薬局データ <button class="btn sm" data-find="me" style="margin-left:8px">🔍 保険薬局一覧から入力</button></h2>
       <div class="grid2">
@@ -203,6 +212,7 @@ table.g input{width:100%}
         <label class="f">FAX<input type="text" id="c-fax"></label>
         <label class="f">管理薬剤師<input type="text" id="c-kanri"></label>
         <label class="f">薬局開設許可番号<input type="text" id="c-kyoka"></label>
+        <label class="f">インボイス登録番号(T＋13桁・未登録なら空欄)<input type="text" id="c-inv" placeholder="T1234567890123"></label>
         <label class="f">消費税<select id="c-tax"><option value="1">あり(10%)</option><option value="0">なし</option></select></label>
         <label class="f">消費税の端数<select id="c-round"><option value="round">四捨五入</option><option value="floor">切り捨て</option></select></label>
         <label class="f">掛け率の候補(カンマ区切り・%)<input type="text" id="c-rates"></label>
@@ -229,6 +239,7 @@ table.g input{width:100%}
   </section>
 </main>
 
+<footer style="text-align:center;color:var(--sub);font-size:12px;padding:8px 0 24px">医薬品分譲伝票 版 2026.10.09 ・ データはこのパソコンのブラウザ内にのみ保存され、外部へは送信されません</footer>
 <div id="pf" class="modal hide">
   <div class="box">
     <div class="hd2">
@@ -243,7 +254,6 @@ table.g input{width:100%}
 <div id="print"></div>
 <div class="toast" id="toast"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 保存データ ──
 const SKEY = 'bunjo_v1';
@@ -345,8 +355,10 @@ function attachSuggest(input, onPick){
 }
 
 // ── 計算 ──
-const unitPrice = l => Math.round((+l.price || 0) * (+l.rate || 0) / 100 * 100) / 100;     // ROUND(薬価×率/100, 2)
-const amount = l => Math.round((+l.qty || 0) * unitPrice(l));                               // ROUND(数量×単価, 0)
+const num = v => parseFloat(String(v ?? '').normalize('NFKC').replace(/[,，\s]/g, '')) || 0;   // 全角数字・カンマ可
+const rateOf = l => (l.rate === undefined || l.rate === null || l.rate === '') ? 100 : num(l.rate);
+const unitPrice = l => Math.round(num(l.price) * rateOf(l) / 100 * 100) / 100;     // ROUND(薬価×率/100, 2)
+const amount = l => Math.round(num(l.qty) * unitPrice(l));                         // ROUND(数量×単価, 0)
 function totals(lines){
   const sub = lines.filter(l => l.name).reduce((a,l) => a + amount(l), 0);
   const raw = S.me.tax == 1 ? sub * 0.1 : 0;
@@ -357,7 +369,10 @@ function totals(lines){
 // ── 分譲納品書 ──
 let slip = newSlip();
 function newSlip(){ return {to:'', date:today(), note:'', lines:Array.from({length:10}, () => ({}))}; }
-function rateOptions(sel){ return S.me.rates.map(r => `<option ${+r===+sel?'selected':''}>${r}</option>`).join(''); }
+function rateOptions(sel){
+  const list = S.me.rates.includes(+sel) || sel === undefined ? S.me.rates : [...S.me.rates, +sel].sort((a,b) => b - a);
+  return list.map(r => `<option ${+r===+sel?'selected':''}>${r}</option>`).join('');
+}
 function destOptions(sel, blank){ return `<option value="">${blank}</option>` + S.dests.map(d => `<option value="${d.id}" ${d.id===sel?'selected':''}>${esc(d.name)}</option>`).join(''); }
 function defaultRate(){ const d = S.dests.find(x => x.id === slip.to); return d && d.rate ? +d.rate : +$('s-rate').value || 100; }
 
@@ -372,9 +387,9 @@ function renderSlip(){
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${i+1}</td>
       <td class="drug"><input type="text" class="nm" value="${esc(l.name||'')}" placeholder="${i ? "" : "例: ろきそ 60 / あむろ 5"}"><div class="muted">${badges(r)}</div></td>
-      <td style="width:76px"><input type="number" min="0" step="any" class="qty" value="${l.qty??''}"></td>
+      <td style="width:76px"><input type="text" inputmode="decimal" class="qty" value="${esc(l.qty??'')}"></td>
       <td style="width:56px" class="muted">${esc(l.unit||'')}</td>
-      <td style="width:92px"><input type="number" min="0" step="any" class="price" value="${l.price??''}"></td>
+      <td style="width:92px"><input type="text" inputmode="decimal" class="price" value="${esc(l.price??'')}"></td>
       <td style="width:78px"><select class="rate">${rateOptions(l.rate ?? 100)}</select></td>
       <td class="num" style="width:84px">${l.name ? unitPrice(l).toLocaleString() : ''}</td>
       <td class="num" style="width:90px">${l.name ? yen(amount(l)) : ''}</td>
@@ -387,7 +402,7 @@ function renderSlip(){
       renderSlip();
       $('s-lines').children[i].querySelector('.qty').focus();
     });
-    nm.addEventListener('change', () => { if(!nm.isConnected) return; if(l.name !== nm.value){ l.name = nm.value; l.code = ''; } updSlip(); });
+    nm.addEventListener('change', () => { if(!nm.isConnected) return; if(l.name !== nm.value){ l.name = nm.value; l.code = ''; if(l.rate == null) l.rate = defaultRate(); } updSlip(); });
     tr.querySelector('.qty').oninput = e => { l.qty = e.target.value; updSlip(tr, l); };
     tr.querySelector('.price').oninput = e => { l.price = e.target.value; l._auto = false; updSlip(tr, l); };
     tr.querySelector('.rate').onchange = e => { l.rate = +e.target.value; updSlip(tr, l); };
@@ -414,6 +429,7 @@ function updSlip(tr, l){
     else if(r[5] === 5) w.push(`<b>${esc(r[1])}</b>:向精神薬です。第1種・第2種は譲渡の記録が必要です。`);
     else if(r[5] === 2) w.push(`<b>${esc(r[1])}</b>:毒薬です。譲受人の文書等の要否を確認してください。`);
   });
+  if(t.sub >= 50000) w.push(`税抜金額が5万円以上です。領収書として渡す場合は<b>収入印紙</b>が必要です(印紙税)。`);
   $('s-warn').innerHTML = w.length ? `<div class="warn">⚠ ${w.join('<br>⚠ ')}</div>` : '';
   if(S.dests.length === 0 && !S.me.name) $('s-warn').innerHTML += `<div class="warn">はじめに「初期設定」で自薬局の情報と分譲先を登録してください。</div>`;
 }
@@ -437,13 +453,13 @@ function slipHalf(doc, chunk, page, pages, isCopy){
     <h3>分譲納品書(兼領収書)${isCopy ? ' 控' : ''}</h3>
     <div class="hd">
       <div><div class="to">${esc(d.name || '')}　御中<small>${esc(d.addr || '')}<br>${d.tel ? 'Tel ' + esc(d.tel) : ''}　${d.fax ? 'Fax ' + esc(d.fax) : ''}${d.kyoka ? '<br>開設許可番号 ' + esc(d.kyoka) : ''}</small></div></div>
-      <div class="me">${jdate(doc.date)}${pages > 1 ? `(${page}/${pages})` : ''}<br>${esc(me.addr)}<br><span class="nm">${esc(me.name)}</span><br>Tel ${esc(me.tel)}　Fax ${esc(me.fax)}<br>薬局開設許可番号 ${esc(me.kyoka)}<br>管理薬剤師 ${esc(me.kanri)}</div>
+      <div class="me">${jdate(doc.date)}${pages > 1 ? `(${page}/${pages})` : ''}<br>${esc(me.addr)}<br><span class="nm">${esc(me.name)}</span><br>Tel ${esc(me.tel)}　Fax ${esc(me.fax)}${me.kyoka ? '<br>薬局開設許可番号 ' + esc(me.kyoka) : ''}${me.kanri ? '<br>管理薬剤師 ' + esc(me.kanri) : ''}${me.inv ? '<br>登録番号 ' + esc(me.inv) : ''}</div>
     </div>
     <table>${COLS([42,9,7,6,8,9,9,10])}<thead><tr><th>薬品名</th><th>数量</th><th>薬価</th><th>掛率</th><th>単価</th><th>金額</th><th>期限</th><th>ロット</th></tr></thead><tbody>
     ${rows.map(l => l ? `<tr>${nameTd(l.name, 71)}<td class="n">${esc(l.qty)}${esc(l.unit||'')}</td><td class="n">${(+l.price).toLocaleString()}</td><td class="n">${l.rate}%</td><td class="n">${unitPrice(l).toLocaleString()}</td><td class="n">${yen(amount(l))}</td><td>${esc(l.exp||'')}</td><td>${esc(l.lot||'')}</td></tr>` : '<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
     </tbody></table>
     <div class="ft"><div class="rm">備考　${esc(doc.note||'')}</div>
-      <table><tr><th>小計</th><td class="n">${t ? yen(t.sub) : ''}</td></tr><tr><th>消費税</th><td class="n">${t ? yen(t.tax) : ''}</td></tr><tr><th>合計</th><td class="n">${t ? yen(t.total) : ''}</td></tr></table></div>
+      <table><tr><th>${S.me.tax == 1 ? '小計(10%対象)' : '小計'}</th><td class="n">${t ? yen(t.sub) : ''}</td></tr><tr><th>${S.me.tax == 1 ? '消費税(10%)' : '消費税'}</th><td class="n">${t ? yen(t.tax) : ''}</td></tr><tr><th>合計</th><td class="n">${t ? yen(t.total) : ''}</td></tr></table></div>
     ${isCopy ? '<div class="sign">譲受人(受領印)　＿＿＿＿＿＿＿＿＿＿＿＿　㊞</div>' : ''}
   </div>`;
 }
@@ -459,13 +475,15 @@ function printSlip(doc){
 }
 function slipDoc(){
   return {id:uid(), date:slip.date, dest:destById(slip.to) || {name:''}, destId:slip.to, note:slip.note,
-    lines: slipFilled().map(l => ({code:l.code||'', name:l.name, qty:+l.qty||0, unit:l.unit||'', price:+l.price||0, rate:+l.rate||100, exp:l.exp||'', lot:l.lot||''})),
+    lines: slipFilled().map(l => ({code:l.code||'', name:l.name, qty:num(l.qty), unit:l.unit||'', price:num(l.price), rate:rateOf(l), exp:l.exp||'', lot:l.lot||''})),
     ver: Y ? Y.ver : ''};
 }
 function checkSlip(){
   if(!slipFilled().length){ toast('薬品が入力されていません'); return false; }
-  if(!slip.to){ toast('分譲先を選択してください'); return false; }
-  if(slipFilled().some(l => !(+l.qty > 0))){ toast('数量が未入力の行があります'); return false; }
+  if(!destById(slip.to)){ toast('分譲先を選択してください'); return false; }
+  if(!slip.date){ toast('日付を入力してください'); return false; }
+  if(slipFilled().some(l => !(num(l.qty) > 0))){ toast('数量が未入力の行があります'); return false; }
+  if(slipFilled().some(l => !(num(l.price) > 0)) && !confirm('薬価が0円(未入力)の行があります。このまま発行しますか?')) return false;
   const ng = slipFilled().filter(l => { const r = l.code && YBYCODE[l.code]; return r && (r[5] === 1 || r[5] === 3); });
   if(ng.length && !confirm(`麻薬・覚醒剤原料が含まれています:\n${ng.map(l => '・' + l.name).join('\n')}\n\n必要な許可・手続きを確認済みの場合のみ発行してください。発行しますか?`)) return false;
   return true;
@@ -489,7 +507,7 @@ function renderReq(){
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${i+1}</td>
       <td class="drug"><input type="text" class="nm" value="${esc(l.name||'')}"><div class="muted">${badges(r)}</div></td>
-      <td style="width:90px"><input type="number" min="0" step="any" class="qty" value="${l.qty??''}"></td>
+      <td style="width:90px"><input type="text" inputmode="decimal" class="qty" value="${esc(l.qty??'')}"></td>
       <td style="width:70px" class="muted">${esc(l.unit||'')}</td>
       <td style="width:120px;text-align:center"><input type="checkbox" class="chk" ${l.chk?'checked':''}></td>
       <td style="width:34px"><button class="btn sm">×</button></td>`;
@@ -508,6 +526,7 @@ function renderReq(){
 function printReq(){
   const ls = req.lines.filter(l => l.name);
   if(!ls.length){ toast('薬品が入力されていません'); return; }
+  if(!destById(req.to) && !confirm('依頼先が選択されていません。宛名なしで印刷しますか?')) return;
   const d = destById(req.to) || {}, me = S.me;
   const pages = Math.ceil(ls.length / 10);
   let h = '';
@@ -569,8 +588,9 @@ function histCsv(){
 }
 
 // ── 初期設定 ──
-const ME_F = {name:'c-name', addr:'c-addr', tel:'c-tel', fax:'c-fax', kanri:'c-kanri', kyoka:'c-kyoka', tax:'c-tax', round:'c-round'};
+const ME_F = {name:'c-name', addr:'c-addr', tel:'c-tel', fax:'c-fax', kanri:'c-kanri', kyoka:'c-kyoka', inv:'c-inv', tax:'c-tax', round:'c-round'};
 function renderSet(){
+  $('guide').classList.toggle('hide', !!(S.me.name && S.dests.length));
   Object.entries(ME_F).forEach(([k, id]) => $(id).value = S.me[k] ?? '');
   $('c-rates').value = S.me.rates.join(',');
   const tb = $('c-dests');
@@ -611,6 +631,7 @@ $('b-import').onchange = async e => {
 $('b-xls').onchange = async e => {
   const f = e.target.files[0]; if(!f) return;
   try{
+    if(!window.XLSX) await new Promise((ok, ng) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; sc.onload = ok; sc.onerror = ng; document.head.appendChild(sc); });
     const wb = XLSX.read(await f.arrayBuffer(), {type:'array', cellDates:true});
     const st = wb.Sheets['初期設定'], hs = wb.Sheets['分譲履歴'];
     if(!st) throw 0;
